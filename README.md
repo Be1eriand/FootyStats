@@ -6,5 +6,5 @@ The scraper scrapes the entire match list from 195 to current and places it into
 The purpose of the scraper is to get the footy stats to place into a DB for later use and analysis.
 
 python -m pip install --upgrade pip
-pip install scrapy
-pip install sqlalchemy
+
+pip install scrapy sqlalchemy bs4 python-dateutil
