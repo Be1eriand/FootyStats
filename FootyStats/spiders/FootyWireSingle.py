@@ -1,6 +1,5 @@
 import scrapy
-from scrapy.spiders import CrawlSpider, Rule
-from scrapy.linkextractors import LinkExtractor
+from scrapy.spiders import Spider
 from scrapy.selector import Selector
 from FootyStats.items import FootyMatchItem
 import re
@@ -45,21 +44,20 @@ StatKeys = {
 }
 
 
-class FootywireSpider(CrawlSpider):
-    name = 'FootyWire'
+class FootywireSingle(Spider):
+    name = 'FWSingle'
     allowed_domains = ['footywire.com']
-    start_urls = [
-        'https://www.footywire.com/afl/footy/ft_match_list'
-    ]
     base_url = 'https://www.footywire.com/afl/footy/'
 
-    rules = (
-        Rule(LinkExtractor(allow=('ft_match_list\?year=',), deny=('round','finals'))),
-        Rule(LinkExtractor(allow=('ft_match_statistics',)), callback='parseFixtures')
-        )
+
+    def start_requests(self):
+
+        url = self.base_url + 'ft_match_statistics?mid=7954'
+
+        yield scrapy.Request(url=url, callback=self.parseFixture)
 
 
-    def parseFixtures(self, response):
+    def parseFixture(self, response):
 
         MatchItem = FootyMatchItem(
             fwID=0,

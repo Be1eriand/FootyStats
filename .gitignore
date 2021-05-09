@@ -41,3 +41,8 @@ venv.bak/
 # VSCode specifics
 .vscode/
 workspace.code-workspace
+
+#project specific
+*.log
+*.sqlite
+*.sqlite-journal

@@ -9,9 +9,10 @@ from scrapy import signals
 from itemadapter import is_item, ItemAdapter
 
 import logging
+import traceback
 
 logger = logging.getLogger('FootyWire')
-logger.setLevel(logging.ERROR)
+logger.setLevel(logging.INFO)
 fh = logging.FileHandler('error.log')
 fh.setLevel(logging.ERROR)
 
@@ -59,7 +60,7 @@ class FootystatsSpiderMiddleware:
         logger.error('Error occured on the following FootyWire ID: %s' % page)
         logger.error('The exception is : %s' % exception)
         logger.error(exception)
-        
+
         return None
 
     def process_start_requests(self, start_requests, spider):
