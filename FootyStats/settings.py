@@ -90,8 +90,6 @@ ITEM_PIPELINES = {
 #Log settings
 LOG_ENABLED = True
 LOG_FILE = "Footywire.log"
-LOG_LEVEL = 'DEBUG'
+LOG_LEVEL = 'INFO'
 LOG_STDOUT = False
 LOGSTATS_INTERVAL = 60.0
-
-

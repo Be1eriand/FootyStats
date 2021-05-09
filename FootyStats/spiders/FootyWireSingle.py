@@ -1,27 +1,63 @@
 import scrapy
-from scrapy.spiders import CrawlSpider, Rule
-from scrapy.linkextractors import LinkExtractor
+from scrapy.spiders import Spider
 from scrapy.selector import Selector
 from FootyStats.items import FootyMatchItem
 import re
 from bs4 import BeautifulSoup
-from datetime import datetime, date, time
+from datetime import datetime
 from dateutil.parser import parse, ParserError
 
+StatKeys = {
+    'K':'Kicks',
+    'HB':'Handballs',
+    'D':'Disposals',
+    'M':'Marks',
+    'G':'Goals',
+    'B':'Behinds',
+    'T':'Tackles',
+    'HO':'Hitouts',
+    'I50':'Inside_50',
+    'CL':'Clearances',
+    'CG':'Clangers',
+    'R50':'Rebound_50',
+    'FF':'Frees_For',
+    'FA':'Frees_Against',
+    'AF':'AFLFantasy',
+    'SC':'SuperCoach',
+    '1%': 'One_Percenters',
+    'BO': 'Bounces',
+    'CCL': 'Centre_Clearances',
+    'CM': 'Contested_Marks',
+    'CP': 'Contested_Possessions',
+    'DE%': 'Disposal_Efficiency',
+    'ED': 'Effective_Disposals',
+    'GA': 'Goal_Assists',
+    'ITC': 'Intercepts',
+    'MG': 'Metres_Gained',
+    'MI5': 'Marks_Inside_50',
+    'SCL': 'Stoppage_Clearances',
+    'SI': 'Score_Invlovement',
+    'T5': 'Tackles_inside_50',
+    'TO': 'Turnovers',
+    'TOG%': 'Time_on_ground',
+    'UP': 'Uncontested_Possession'
+}
 
-class FootywireSpider(CrawlSpider):
-    name = 'FootyWire'
+
+class FootywireSingle(Spider):
+    name = 'FWSingle'
     allowed_domains = ['footywire.com']
-    start_urls = ['https://www.footywire.com/afl/footy/ft_match_list?year=1965']
     base_url = 'https://www.footywire.com/afl/footy/'
 
-    rules = (
-        Rule(LinkExtractor(allow=('ft_match_list\?year=',), deny=('round','finals'))),
-        Rule(LinkExtractor(allow=('ft_match_statistics',)), callback='parseFixtures')
-        )
-            
 
-    def parseFixtures(self, response):
+    def start_requests(self):
+
+        url = self.base_url + 'ft_match_statistics?mid=7954'
+
+        yield scrapy.Request(url=url, callback=self.parseFixture)
+
+
+    def parseFixture(self, response):
 
         MatchItem = FootyMatchItem(
             fwID=0,
@@ -44,9 +80,9 @@ class FootywireSpider(CrawlSpider):
 
         MatchInfoTbl, ScoresTbl, HomeTeamTbl, AwayTeamTbl, TeamStatsTbl = self.getMatchTables(response)
 
-        MatchItem['fwID'] = self.getFootyWireID(response.url) 
+        MatchItem['fwID'] = self.getFootyWireID(response.url)
         MatchItem['MatchDate'], MatchItem['MatchTime'], MatchItem['Ground'], MatchItem['Round'], MatchItem['Attendance'] = self.getMatchInfo(MatchInfoTbl)
-        MatchItem['HomeTeamScore'], MatchItem['AwayTeamScore'] = self.processScores(ScoresTbl) 
+        MatchItem['HomeTeamScore'], MatchItem['AwayTeamScore'], MatchItem['HomeTeamName'], MatchItem['AwayTeamName'] = self.processScores(ScoresTbl)
         MatchItem['HomeTeamCoach'], MatchItem['HomeTeamPlayers_Stats'] = self.processTeam(HomeTeamTbl)
         MatchItem['AwayTeamCoach'], MatchItem['AwayTeamPlayers_Stats'] = self.processTeam(AwayTeamTbl)
         MatchItem['HomeTeamStats'], MatchItem['AwayTeamStats'] = self.processTeamStats(TeamStatsTbl)
@@ -68,7 +104,7 @@ class FootywireSpider(CrawlSpider):
 
         item['HomeTeamCoach'], item['HomeTeamPlayers_AdvStats'] = self.processTeam(HomeTeamTbl)
         item['AwayTeamCoach'], item['AwayTeamPlayers_AdvStats'] = self.processTeam(AwayTeamTbl)
-        
+
         return item
 
     def getMatchTables(self, response):
@@ -82,12 +118,14 @@ class FootywireSpider(CrawlSpider):
         pageTbl = Selector(response=response).xpath('//*[@id="frametable2008"]//tr[3]//table')[2]
         MatchInfoTbl = pageTbl.css('.lnormtop').xpath('./table/tr/td[1]/table').get()
         ScoresTbl = pageTbl.css('.lnormtop').xpath('./table/tr/td[3]/table').get()
-        HomeTeamTbl = Selector(text=pageTbl.get()).xpath('//table')[5].get()
-        AwayTeamTbl = Selector(text=pageTbl.get()).xpath('//table')[9].get()
-        TeamStatsTbl = Selector(text=pageTbl.get()).xpath('//table')[13].get()
+        soup = BeautifulSoup(pageTbl.get(), 'lxml') #Stuff FootyWire and it's ever changing formatting
+        team_tables = soup.find_all('td', class_='tbtitle')
+        HomeTeamTbl = repr(team_tables[0].find_parent('table'))
+        AwayTeamTbl = repr(team_tables[1].find_parent('table'))
+        TeamStatsTbl = repr(team_tables[2].find_parent('table'))
 
         return MatchInfoTbl, ScoresTbl, HomeTeamTbl, AwayTeamTbl, TeamStatsTbl
-        
+
     def getFootyWireID(self, url):
 
         return int(re.sub('\D', '', url.split('=')[1]))
@@ -95,7 +133,7 @@ class FootywireSpider(CrawlSpider):
     def getMatchInfo(self, table):
 
         Soup = BeautifulSoup(table, 'lxml')
-    
+
         td_list = Soup.find_all('td')
 
         ground = ''
@@ -104,7 +142,7 @@ class FootywireSpider(CrawlSpider):
         dt = ''
 
         for row in td_list:
-            
+
             if row.string is not None:
                 if (re.search('Round', row.string) is not None) or (re.search('Final', row.string) is not None):
 
@@ -134,7 +172,7 @@ class FootywireSpider(CrawlSpider):
                         dt = row.string
 
                     except ParserError:
-                        pass 
+                        pass
 
         matchDay, matchDate, matchTime = self.processDate(dt)
 
@@ -155,7 +193,11 @@ class FootywireSpider(CrawlSpider):
 
         d = datetime.strptime(d_list[1], '%d %B %Y')
         if len(d_list) == 3:
-            t = d_list[2].strip(' ')
+            sp_t = {}
+            sp_t = d_list[2].strip(' ').split(' ')
+            if len(sp_t) == 3:
+                sp_t = sp_t[0:2]
+            t = ' '.join(sp_t)
         else:
             t =''
 
@@ -164,34 +206,38 @@ class FootywireSpider(CrawlSpider):
     def processScores(self, table):
 
         rows = Selector(text=table).xpath('//tr')
-        HSc = Selector(text=rows[1].get()).xpath('//td/text()').getall()
-        ASc = Selector(text=rows[2].get()).xpath('//td/text()').getall()
+        HSc = Selector(text=rows[1].get()).xpath('//td/text()').getall()  #Get the Home scores
+        ASc = Selector(text=rows[2].get()).xpath('//td/text()').getall()  #Get the Away scores
 
-        quarters = ('Q1', 'Q2', 'Q3', 'Q4', 'FinalScore')
+        HomeTeam = Selector(text=rows[1].get()).xpath('//a/text()').get()  #Get the Home Team Name
+        AwayTeam = Selector(text=rows[2].get()).xpath('//a/text()').get()  #Get the Away Team Name
 
         HomeScores = {}
         AwayScores = {}
+
+        quarters = ('Q1', 'Q2', 'Q3', 'Q4', 'FinalScore')
 
         for (Q, H, A) in zip(quarters, HSc, ASc):
             HomeScores[Q] = H.strip(' \n')
             AwayScores[Q] = A.strip(' \n')
 
-        return HomeScores, AwayScores
+        return HomeScores, AwayScores, HomeTeam, AwayTeam
 
     def processTeam(self, table):
 
-        coach = Selector(text=table).xpath('//table//td/a/text()').get()
+        cText = Selector(text=table).xpath('//table//td/a').get() #2019 hack - No coach info "What is it with FootyWire?"
+        coach = Selector(text=cText).xpath('//text()').get()
 
-        try: 
+        try:
 
             player_table = Selector(text=table).xpath('//table')[2].get()
-        
+
         except IndexError: # Infuriating that the formatting keeps changing
 
-            player_table = Selector(text=table).xpath('//table').get() 
+            player_table = Selector(text=table).xpath('//table').get()
 
         player_row = Selector(text=player_table).xpath('//tr').getall()
-        
+
         stats_row = Selector(text=player_row[0].replace('\n', '')).xpath('//text()').getall()
 
         if stats_row[0] != 'Player': #Wish they wouldn't change the formatting
@@ -199,7 +245,7 @@ class FootywireSpider(CrawlSpider):
             player_table = Selector(text=table).xpath('//table')[4].get()
 
             player_row = Selector(text=player_table).xpath('//tr').getall()
-            
+
             stats_row = Selector(text=player_row[0].replace('\n', '')).xpath('//text()').getall()
 
         stats = ()
@@ -216,7 +262,7 @@ class FootywireSpider(CrawlSpider):
             Players.append(player_stats)
 
         return coach, Players
-        
+
 
     def processPlayersStat(self, row, stats):
 
@@ -230,17 +276,9 @@ class FootywireSpider(CrawlSpider):
         player_stats['link'] = link
 
         for (s, p) in zip(stats, PS):
-            
+
             x = re.sub('[^0123456789\.]', '', p)
-
-            if re.search('.',x) is None:
-                player_stats[s] = int(x)
-            else:
-                player_stats[s] = float(x)
-
-        if 'AF' in stats:
-            player_stats.pop('AF')
-            player_stats.pop('SC')
+            player_stats[StatKeys[s]] = self.FloatOrInt(x)
 
         return player_stats
 
@@ -258,7 +296,23 @@ class FootywireSpider(CrawlSpider):
 
             Home, label, Away = Selector(text=row).xpath('//td/text()').getall()
             label = re.sub('[^0-9a-zA-Z]', '', label)
-            HomeTeam[label] = Home
-            AwayTeam[label] = Away
+
+            if label != 'Statistic':
+                #process into int or float
+                Home = re.sub('[^0123456789\.]', '', Home)
+                Away = re.sub('[^0123456789\.]', '', Away)
+
+                HomeTeam[label] = self.FloatOrInt(Home)
+                AwayTeam[label] = self.FloatOrInt(Away)
 
         return HomeTeam, AwayTeam
+
+    def FloatOrInt(self, x):
+
+        if x == '':  #FootyWire you're killing me here. change from '' to -1 to imply N/A
+            x = '-1'
+
+        if re.search('\.',x) is None:
+            return int(x)
+        else:
+            return float(x)

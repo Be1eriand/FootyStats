@@ -1,4 +1,5 @@
 from FootyStats.spiders import FootywireSpider
+from datetime import datetime
 import pytest
 
 
@@ -21,7 +22,7 @@ def test_getMatchInfo(FwS):
     #test without attendance
     info = {}
     info['Date'] = '10/04/2021'
-    info['Time'] = '7:25 PM AEST'
+    info['Time'] = '7:25 PM'
     info['Ground'] = 'MCG'
     info['Round'] = 'Round 4'
     info['Attendance'] = 0
@@ -41,7 +42,7 @@ def test_getMatchInfowithA(FwS):
     #test with attendance
     info = {}
     info['Date'] = '10/04/2021'
-    info['Time'] = '7:25 PM AEST'
+    info['Time'] = '7:25 PM'
     info['Ground'] = 'MCG'
     info['Round'] = 'Round 4'
     info['Attendance'] = 29866
@@ -117,7 +118,7 @@ def test_getMatchInfoFinalsv2(FwS):
 def test_getMatchInfoFinalsv1(FwS):
     info = {}
     info['Date'] = '30/09/2017'
-    info['Time'] = '2:30 PM AEST'
+    info['Time'] = '2:30 PM'
     info['Ground'] = 'MCG'
     info['Round'] = 'Grand Final'
     info['Attendance'] = 100021
@@ -138,7 +139,7 @@ def test_processDate(FwS):
     dt = 'Saturday, 10th April 2021, 7:25 PM AEST'
     day = 'Saturday'
     d = '10/04/2021'
-    t = '7:25 PM AEST'
+    t = '7:25 PM'
 
     day_r, d_r, t_r = FwS.processDate(dt)
 
@@ -166,11 +167,16 @@ def test_processScores(FwS):
     AwayScores['Q4'] = '14.6'
     AwayScores['FinalScore'] = '90'
 
-    Score_Home, Score_Away = FwS.processScores(table)
+    HomeTeamName = 'Collingwood'
+    AwayTeamName = 'GWS'
+
+    Score_Home, Score_Away, Name_HomeTeam, Name_AwayTeam = FwS.processScores(table)
 
     assert Score_Home == HomeScores
     assert Score_Away == AwayScores
-    
+    assert Name_HomeTeam == HomeTeamName
+    assert Name_AwayTeam == AwayTeamName
+
 
 def test_processPlayersStat(FwS):
 
@@ -179,23 +185,25 @@ def test_processPlayersStat(FwS):
     player_stats = {}
     player_stats['name'] = 'Steele Sidebottom'
     player_stats['link'] =  'pp-collingwood-magpies--steele-sidebottom'
-    player_stats['K'] = 21
-    player_stats['HB'] = 9
-    player_stats['D'] = 30
-    player_stats['M'] = 8
-    player_stats['G'] = 0
-    player_stats['B'] = 0
-    player_stats['T'] = 2
-    player_stats['HO'] = 0
-    player_stats['GA'] = 0
-    player_stats['I50'] = 6
-    player_stats['CL'] = 3
-    player_stats['CG'] = 7
-    player_stats['R50'] = 1
-    player_stats['FF'] = 1
-    player_stats['FA'] = 2
+    player_stats['Kicks'] = 21
+    player_stats['Handballs'] = 9
+    player_stats['Disposals'] = 30
+    player_stats['Marks'] = 8
+    player_stats['Goals'] = 0
+    player_stats['Behinds'] = 0
+    player_stats['Tackles'] = 2
+    player_stats['Hitouts'] = 0
+    player_stats['Goal_Assists'] = 0
+    player_stats['Inside_50'] = 6
+    player_stats['Clearances'] = 3
+    player_stats['Clangers'] = 7
+    player_stats['Rebound_50'] = 1
+    player_stats['Frees_For'] = 1
+    player_stats['Frees_Against'] = 2
+    player_stats['AFLFantasy'] = 108
+    player_stats['SuperCoach'] = 79
 
-    stats = ('K', 'HB',	'D', 'M', 'G', 'B', 'T', 'HO', 'GA', 'I50', 'CL', 'CG', 'R50', 'FF', 'FA', 'AF', 'SC')
+    stats = ('K', 'HB', 'D', 'M', 'G', 'B', 'T', 'HO', 'GA', 'I50', 'CL', 'CG', 'R50', 'FF', 'FA', 'AF', 'SC')
 
     PS = FwS.processPlayersStat(table, stats)
 
@@ -210,16 +218,16 @@ def test_processPlayersStatwithouAF(FwS):
     player_stats = {}
     player_stats['name'] = 'Peter Bell'
     player_stats['link'] = 'pp-fremantle-dockers--peter-bell'
-    player_stats['K'] = 9
-    player_stats['HB'] = 23
-    player_stats['D'] = 32
-    player_stats['M'] = 4
-    player_stats['G'] = 0
-    player_stats['B'] = 0
-    player_stats['T'] = 5
-    player_stats['HO'] = 0
-    player_stats['FF'] = 1
-    player_stats['FA'] = 0
+    player_stats['Kicks'] = 9
+    player_stats['Handballs'] = 23
+    player_stats['Disposals'] = 32
+    player_stats['Marks'] = 4
+    player_stats['Goals'] = 0
+    player_stats['Behinds'] = 0
+    player_stats['Tackles'] = 5
+    player_stats['Hitouts'] = 0
+    player_stats['Frees_For'] = 1
+    player_stats['Frees_Against'] = 0
 
     PS = FwS.processPlayersStat(row, stats)
 
@@ -233,8 +241,8 @@ def test_processTeamStats(FwS):
     HomeTeam={}
     AwayTeam={}
 
-    HomeTeam['Kicks'] = '155'
-    AwayTeam['Kicks'] = '188'
+    HomeTeam['Kicks'] = 155
+    AwayTeam['Kicks'] = 188
 
     result_HT, result_AT = FwS.processTeamStats(table)
 
@@ -251,23 +259,23 @@ def test_processAdvancedPlayersStat(FwS):
     player_stats = {}
     player_stats['name'] = 'J Graham'
     player_stats['link'] =  'pp-richmond-tigers--jack-graham'
-    player_stats['CP']= 8
-    player_stats['UP']=26
-    player_stats['ED']=26
-    player_stats['DE%']=78.8 #need to handle decimals
-    player_stats['CM']=0
-    player_stats['GA']=1
-    player_stats['MI5']=0
-    player_stats['1%']=0
-    player_stats['BO']=0
-    player_stats['CCL']=2
-    player_stats['SCL']=3
-    player_stats['SI']=7
-    player_stats['MG']=836
-    player_stats['TO']=7
-    player_stats['ITC']=2
-    player_stats['T5']=0
-    player_stats['TOG%']=76
+    player_stats['Contested_Possessions']= 8
+    player_stats['Uncontested_Possession']=26
+    player_stats['Effective_Disposals'] = 26
+    player_stats['Disposal_Efficiency'] = 78.8  #need to handle decimals
+    player_stats['Contested_Marks'] = 0
+    player_stats['Goal_Assists']=1
+    player_stats['Marks_Inside_50'] = 0
+    player_stats['One_Percenters'] = 0
+    player_stats['Bounces']=0
+    player_stats['Centre_Clearances']=2
+    player_stats['Stoppage_Clearances']=3
+    player_stats['Score_Invlovement'] = 7
+    player_stats['Metres_Gained']=836
+    player_stats['Turnovers']=7
+    player_stats['Intercepts']=2
+    player_stats['Tackles_inside_50'] = 0
+    player_stats['Time_on_ground']=76
 
     stats = ('CP','UP','ED','DE%','CM','GA','MI5','1%','BO','CCL','SCL','SI','MG','TO','ITC','T5','TOG%')
 
