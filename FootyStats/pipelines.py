@@ -13,6 +13,8 @@ from sqlalchemy.orm import sessionmaker
 
 import logging
 import sys, traceback
+import re
+from datetime import datetime
 
 from sqlalchemy.sql.expression import and_
 
@@ -33,8 +35,10 @@ class FootystatsPipeline:
 
     @classmethod
     def from_crawler(cls, crawler):
-        return cls(sql_db= 'sqlite:///:memory:' #'sqlite:///.\\Database\\FootyStats.sqlite'  #.\Database
-                   )
+        return cls(
+            sql_db=
+            'sqlite:///.\\Database\\FootyStats.sqlite'  #.\Database 'sqlite:///:memory:' #
+        )
 
     def open_spider(self, spider):
 
@@ -80,11 +84,15 @@ class FootystatsPipeline:
 
         try:
             FirstName, LastName = playerInfo['name'].split(' ')
-        except ValueError: # if they have a split surname ie De Gooey, Van Berlo, Van der Brink
+        except ValueError: # if they have a split surname ie De Gooey, Van Berlo, Van der Brink or middle initial
             Name = {}
             Name = playerInfo['name'].split(' ')
             FirstName = Name[0]
             Name = Name[1:len(Name)+1]
+
+            if re.search('\.', Name[0]):
+                Name = Name[1:len(Name) + 1]
+
             LastName = ' '.join(Name)
 
         player = Player(First_Name=FirstName,
@@ -95,7 +103,7 @@ class FootystatsPipeline:
 
         result = self.processQuery(player, qText)
 
-        return result.id
+        return result
 
     def processGround(self, ground):
 
@@ -268,6 +276,32 @@ class FootystatsPipeline:
                                         item['AwayTeamCoach'],
                                         item['AwayTeamStats'])
 
+        teamInfo = {
+            'HomeTeamID': HomeTeamID,
+            'AwayTeamID': AwayTeamID,
+            'HomeScoresID': HomeScoreID,
+            'AwayScoresID': AwayScoreID
+        }
+
+        if item['MatchTime'] != '':
+            _Time = datetime.strptime(item['MatchTime'], '%H:%M %p')
+        else:
+            _Time = None
+
+        if item['MatchDate'] != '':
+            _Date = datetime.strptime(item['MatchDate'],'%d/%m/%Y').date()
+        else:
+            _Date = None
+
+        fixtureInfo = {
+            'Attendance': item['Attendance'],
+            'Ground': ground,
+            'MatchDate': _Date,
+            'MatchTime': _Time,
+            'Round': item['Round'],
+            'fwID': item['fwID']
+        }
+
         #Home Team Players
         player_stats = item['HomeTeamPlayers_Stats']
         if 'HomeTeamPlayers_AdvStats' in item:
@@ -288,32 +322,34 @@ class FootystatsPipeline:
         self.processPlayerStats(AwayTeamID, AwayClubID, player_stats,
                                 player_adv_stats)
 
+        self.processFixture(teamInfo, fixtureInfo)
+
 
     def processPlayerStats(self, teamID, clubID, playerStats, playerStatsAdv):
 
         for stat in playerStats:
 
-            playerID = self.processPlayer(stat)
+            player = self.processPlayer(stat)
             playerStatID = self.processBasicStats(stat)
             playerStatsAdvID = None
 
-            TL = self.processTeamList(teamID, playerID, playerStatID, playerStatsAdvID)
-            CL = self.processClubList(clubID, playerID)
+            TL = self.processTeamList(teamID, player.id, playerStatID, playerStatsAdvID)
+            CL = self.processClubList(clubID, player.id)
 
             if (TL is None) or (CL is None):
                 logger.error('Unable to process Club List or Team List')
                 return False
 
 
-            if playerStatsAdv is not None:
-                for stat in playerStatsAdv:
-                    playerID = self.processPlayer(stat)
-                    playerStatsAdvID = self.processAdvancedStats(stat)
+        if playerStatsAdv is not None:
+            for stat in playerStatsAdv:
+                player = self.processPlayer(stat)
+                playerStatsAdvID = self.processAdvancedStats(stat)
 
-                    self.session.query(Team_List).filter(
-                        and_(Team_List.TeamID == teamID,
-                             Team_List.PlayerID == playerID)).update(
-                                 {'AdvancedStats': playerStatsAdvID},
-                                 synchronize_session="fetch")
+                self.session.query(Team_List).filter(
+                    and_(Team_List.TeamID == teamID,
+                            Team_List.PlayerID == player.id)).update(
+                                {'AdvancedStats': playerStatsAdvID},
+                                synchronize_session="fetch")
 
         return True

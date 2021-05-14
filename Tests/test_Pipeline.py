@@ -78,7 +78,7 @@ def test_processPlayer(Pipe, FwS):
 
     result = Pipe.processPlayer(info)
 
-    assert result == 1
+    assert result.id == 1
 
 
 def test_processPlayerSplitSurname(Pipe, FwS):
@@ -109,7 +109,42 @@ def test_processPlayerSplitSurname(Pipe, FwS):
 
     result = Pipe.processPlayer(info)
 
-    assert result > 0
+    assert result.id > 0
+    assert result.First_Name == 'Jordan'
+    assert result.Last_Name == 'De Goey'
+
+
+def test_processPlayerMiddleName(Pipe, FwS):
+
+    Pipe.open_spider(FwS)
+
+    info = {
+        'AFLFantasy': 90,
+        'Behinds': 3,
+        'Clangers': 2,
+        'Clearances': 0,
+        'Disposals': 16,
+        'Frees_Against': 1,
+        'Frees_For': 1,
+        'Goal_Assists': 2,
+        'Goals': 4,
+        'Handballs': 5,
+        'Hitouts': 0,
+        'Inside_50': 2,
+        'Kicks': 11,
+        'Marks': 6,
+        'Rebound_50': 0,
+        'SuperCoach': 99,
+        'Tackles': 1,
+        'link': 'pp-sydney-swans--josh-p--kennedy',
+        'name': 'Josh P. Kennedy'
+    }
+
+    result = Pipe.processPlayer(info)
+
+    assert result.id > 0
+    assert result.First_Name == 'Josh'
+    assert result.Last_Name == 'Kennedy'
 
 
 def test_processPlayer_duplicate(Pipe, FwS):
@@ -140,6 +175,59 @@ def test_processPlayer_duplicate(Pipe, FwS):
     result2 = Pipe.processPlayer(info)
 
     assert result2 == result1
+
+
+def test_processPlayer_dup_name(Pipe, FwS):
+
+    Pipe.open_spider(FwS)
+
+    info1 = {
+        'B': 1.0,
+        'CG': 10.0,
+        'CL': 3.0,
+        'D': 30.0,
+        'FA': 4.0,
+        'FF': 4.0,
+        'G': 0.0,
+        'GA': 1.0,
+        'HB': 14.0,
+        'HO': 0.0,
+        'I50': 4.0,
+        'K': 16.0,
+        'M': 5.0,
+        'R50': 0.0,
+        'T': 8.0,
+        'link': 'pp-geelong-cats--joel-selwood',
+        'name': 'Joel Selwood'
+    }
+
+    info2 = {
+        'B': 1.0,
+        'CG': 10.0,
+        'CL': 3.0,
+        'D': 30.0,
+        'FA': 4.0,
+        'FF': 4.0,
+        'G': 0.0,
+        'GA': 1.0,
+        'HB': 14.0,
+        'HO': 0.0,
+        'I50': 4.0,
+        'K': 16.0,
+        'M': 5.0,
+        'R50': 0.0,
+        'T': 8.0,
+        'link': 'pp-geelong-cats--joel-selwood',
+        'name': 'J Selwood'
+    }
+
+    result1 = Pipe.processPlayer(info1)
+    result2 = Pipe.processPlayer(info2)
+
+    assert result2 == result1
+    assert result1.First_Name == 'Joel'
+    assert result2.First_Name == 'Joel'
+
 
 def test_processGround(Pipe, FwS):
 
@@ -227,7 +315,7 @@ def test_processCoachEscape(Pipe, FwS):
 
     result = Pipe.processCoach(coach)
 
-    assert result == 1
+    assert result >= 1
 
 
 def test_processCoach_duplicate(Pipe, FwS):
@@ -410,6 +498,40 @@ def test_processFixture(Pipe, FwS):
         'AwayTeamID' : 2,
         'HomeScoresID' : 1,
         'AwayScoresID'  : 2
+    }
+
+    result = Pipe.processFixture(teamInfo, fixtureInfo)
+
+    assert result.fwID == fixtureInfo['fwID']
+    assert result.HomeTeamID == teamInfo['HomeTeamID']
+    assert result.AwayTeamID == teamInfo['AwayTeamID']
+    assert result.HomeScoresID == teamInfo['HomeScoresID']
+    assert result.AwayScoresID == teamInfo['AwayScoresID']
+    assert result.Ground == fixtureInfo['Ground']
+    assert result.MatchDate == fixtureInfo['MatchDate']
+    assert result.MatchTime == fixtureInfo['MatchTime']
+    assert result.Round == fixtureInfo['Round']
+    assert result.Attendance == fixtureInfo['Attendance']
+
+
+def test_processFixture_NoTimeDate(Pipe, FwS):
+
+    Pipe.open_spider(FwS)
+
+    fixtureInfo = {
+        'Attendance': 20986,
+        'Ground': 'Marvel Stadium',
+        'MatchDate': None,
+        'MatchTime': None,
+        'Round': 'Round 3',
+        'fwID': 10349
+    }
+
+    teamInfo = {
+        'HomeTeamID': 1,
+        'AwayTeamID': 2,
+        'HomeScoresID': 1,
+        'AwayScoresID': 2
     }
 
     result = Pipe.processFixture(teamInfo, fixtureInfo)

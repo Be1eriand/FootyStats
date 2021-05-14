@@ -52,7 +52,7 @@ class FootywireSingle(Spider):
 
     def start_requests(self):
 
-        url = self.base_url + 'ft_match_statistics?mid=7954'
+        url = self.base_url + 'ft_match_statistics?mid=10338'
 
         yield scrapy.Request(url=url, callback=self.parseFixture)
 
