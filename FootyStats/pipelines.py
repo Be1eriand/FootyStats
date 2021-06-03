@@ -8,8 +8,9 @@
 from itemadapter import ItemAdapter
 
 from models import *
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, select
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import IntegrityError
 
 import logging
 import sys, traceback
@@ -68,15 +69,12 @@ class FootystatsPipeline:
 
             logger.error('Unable to process Footywire ID (%d)' %
                          (item['fwID']))
-            logger.error('Match Item:')
-            logger.error(item)
-            logger.error('Exception is :')
-            logger.error(e)
-            logger.error('Traceback is:')
-            logger.error(traceback.print_exception(exc_type,
-                                                    exc_value,
-                                                    exc_traceback,
-                                                    limit=10))
+            logger.debug('Match Item:')
+            logger.debug(item)
+            logger.debug('Exception is :')
+            logger.debug(e)
+            logger.debug('Traceback is:')
+            logger.debug(traceback.print_tb(e.__traceback__))
 
         return item
 
@@ -221,8 +219,9 @@ class FootystatsPipeline:
         for key, value in teamInfo.items():
             setattr(fixture, key, value)
 
-        self.session.add(fixture)
-        self.session.commit()
+        qtext = 'fwID=%d' % fixture.fwID
+
+        self.processQuery(fixture,qtext)
 
         return fixture
 
@@ -260,70 +259,90 @@ class FootystatsPipeline:
         ground = item['Ground']
         self.processGround(ground)
 
-        #Home Team
-        HomeScoreID = self.processScores(item['HomeTeamScore'])
-        HomeClubID = self.processClub(item['HomeTeamName'])
-        HomeCoachID = self.processCoach(item['HomeTeamCoach'])
-        HomeTeamID = self.processTeam(item['HomeTeamName'],
-                                        item['HomeTeamCoach'],
-                                        item['HomeTeamStats'])
+        if not self.checkfwIDexists(item['fwID']): # if fwID hasn't been added then let's add in all the deets
 
-        #away Team
-        AwayScoreID = self.processScores(item['AwayTeamScore'])
-        AwayClubID = self.processClub(item['AwayTeamName'])
-        AwayCoachID = self.processCoach(item['AwayTeamCoach'])
-        AwayTeamID = self.processTeam(item['AwayTeamName'],
-                                        item['AwayTeamCoach'],
-                                        item['AwayTeamStats'])
+            #Home Team
+            HomeScoreID = self.processScores(item['HomeTeamScore'] )
+            HomeClubID = self.processClub(item['HomeTeamName'])
+            HomeCoachID = self.processCoach(item['HomeTeamCoach'])
+            HomeTeamID = self.processTeam(item['HomeTeamName'],
+                                            item['HomeTeamCoach'],
+                                            item['HomeTeamStats'])
 
-        teamInfo = {
-            'HomeTeamID': HomeTeamID,
-            'AwayTeamID': AwayTeamID,
-            'HomeScoresID': HomeScoreID,
-            'AwayScoresID': AwayScoreID
-        }
+            if HomeTeamID != HomeScoreID: #Let's try and stop the data integrity issues from occuring
 
-        if item['MatchTime'] != '':
-            _Time = datetime.strptime(item['MatchTime'], '%H:%M %p')
-        else:
-            _Time = None
+                self.deleterows(HomeScoreID, HomeTeamID)
+                raise Exception(
+                    'Database & Tables seems to be out ouf aligment: fwID = %d'
+                    % item['fwID'])
 
-        if item['MatchDate'] != '':
-            _Date = datetime.strptime(item['MatchDate'],'%d/%m/%Y').date()
-        else:
-            _Date = None
+            #away Team
+            AwayScoreID = self.processScores(item['AwayTeamScore'])
+            AwayClubID = self.processClub(item['AwayTeamName'])
+            AwayCoachID = self.processCoach(item['AwayTeamCoach'])
+            AwayTeamID = self.processTeam(item['AwayTeamName'],
+                                            item['AwayTeamCoach'],
+                                            item['AwayTeamStats'])
 
-        fixtureInfo = {
-            'Attendance': item['Attendance'],
-            'Ground': ground,
-            'MatchDate': _Date,
-            'MatchTime': _Time,
-            'Round': item['Round'],
-            'fwID': item['fwID']
-        }
+            if AwayTeamID != AwayScoreID:
 
-        #Home Team Players
-        player_stats = item['HomeTeamPlayers_Stats']
-        if 'HomeTeamPlayers_AdvStats' in item:
-            player_adv_stats = item['HomeTeamPlayers_AdvStats']
-        else:
-            player_adv_stats = None
+                self.deleterows(HomeScoreID, HomeTeamID)
+                raise Exception(
+                    'Database & Tables seems to be out ouf aligment: fwID = %d'
+                    % item['fwID'])
 
-        self.processPlayerStats(HomeTeamID, HomeClubID, player_stats,
-                                player_adv_stats)
+            teamInfo = {
+                'HomeTeamID': HomeTeamID,
+                'AwayTeamID': AwayTeamID,
+                'HomeScoresID': HomeScoreID,
+                'AwayScoresID': AwayScoreID
+            }
 
-        #Away Team Players
-        player_stats = item['AwayTeamPlayers_Stats']
-        if 'AwayTeamPlayers_AdvStats' in item:
-            player_adv_stats = item['AwayTeamPlayers_AdvStats']
-        else:
-            player_adv_stats = None
+            if item['MatchTime'] != '':
+                _Time = datetime.strptime(item['MatchTime'], '%H:%M %p')
+            else:
+                _Time = None
 
-        self.processPlayerStats(AwayTeamID, AwayClubID, player_stats,
-                                player_adv_stats)
+            if item['MatchDate'] != '':
+                _Date = datetime.strptime(item['MatchDate'],'%d/%m/%Y').date()
+            else:
+                _Date = None
 
-        self.processFixture(teamInfo, fixtureInfo)
+            fixtureInfo = {
+                'Attendance': item['Attendance'],
+                'Ground': ground,
+                'MatchDate': _Date,
+                'MatchTime': _Time,
+                'Round': item['Round'],
+                'fwID': item['fwID']
+            }
 
+            #Home Team Players
+            player_stats = item['HomeTeamPlayers_Stats']
+            if 'HomeTeamPlayers_AdvStats' in item:
+                player_adv_stats = item['HomeTeamPlayers_AdvStats']
+            else:
+                player_adv_stats = None
+
+            self.processPlayerStats(HomeTeamID, HomeClubID, player_stats,
+                                    player_adv_stats)
+
+            #Away Team Players
+            player_stats = item['AwayTeamPlayers_Stats']
+            if 'AwayTeamPlayers_AdvStats' in item:
+                player_adv_stats = item['AwayTeamPlayers_AdvStats']
+            else:
+                player_adv_stats = None
+
+            self.processPlayerStats(AwayTeamID, AwayClubID, player_stats,
+                                    player_adv_stats)
+
+            self.processFixture(teamInfo, fixtureInfo)
+        else: #if they have then we're probably missing Data
+
+            logger.info('Processing Missing Data')
+            logger.info('fwID: %d' % item['fwID'])
+            self.processMissingData(item)
 
     def processPlayerStats(self, teamID, clubID, playerStats, playerStatsAdv):
 
@@ -353,3 +372,32 @@ class FootystatsPipeline:
                                 synchronize_session="fetch")
 
         return True
+
+    def checkfwIDexists(self, fwID):
+
+        qText = 'fwID=%d' % fwID
+
+        query = self.session.query(Fixture).filter(text(qText)).all()
+
+        if len(query) == 0:
+            return False
+        elif len(query) != 1:  #Should never return more than one result
+            raise ValueError('Query of {classType} has more than one'.format(classType=type(object))) #Is this the best way?
+        else:
+            return True
+
+    def processMissingData(self, item):
+
+        pass
+
+    def deleterows(self, score, team):
+
+        qText = 'id==%d' % score
+        results = self.session.query(Match_Scores).filter(text(qText)).all()
+        for result in results:
+            self.session.delete(result)
+
+        qText = 'id==%d' % team
+        results = self.session.query(Team).filter(text(qText)).all()
+        for result in results:
+            self.session.delete(result)

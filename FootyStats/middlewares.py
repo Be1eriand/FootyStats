@@ -5,11 +5,7 @@
 
 from scrapy import signals
 
-# useful for handling different item types with a single interface
-from itemadapter import is_item, ItemAdapter
-
 import logging
-import traceback
 
 logger = logging.getLogger('FootyWire')
 logger.setLevel(logging.INFO)
@@ -118,7 +114,11 @@ class FootystatsDownloaderMiddleware:
         # - return None: continue processing this exception
         # - return a Response object: stops process_exception() chain
         # - return a Request object: stops process_exception() chain
-        pass
+                
+        page = request.url.split('?')[1]
+        logger.error('Unable to dowload FootyWire ID: %s' % page)
+
+        return None
 
     def spider_opened(self, spider):
         spider.logger.info('Spider opened: %s' % spider.name)
